@@ -1,0 +1,32 @@
+{
+  "name": "check-domain",
+  "version": "0.0.1",
+  "description": "A simple component to check the status of a domain (whois, availability, expired, PR, TrustFlow, ...)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/christophebe/check-domain"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "seo",
+    "expired",
+    "domain",
+    "check domain status"
+  ],
+  "author": "Christophe Lombart",
+  "license": "Apache",
+  "dependencies": {
+    "async": "^1.4.2",
+    "pagerank": "^2.0.0",
+    "request": "*",
+    "zombie": "*"
+  },
+  "devDependencies": {
+    "mocha": "*",
+    "expect": "*"
+  },
+  "homepage": "https://github.com/christophebe/check-domain"
+}
