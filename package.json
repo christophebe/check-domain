@@ -22,7 +22,8 @@
     "async": "^1.4.2",
     "pagerank": "^2.0.0",
     "request": "*",
-    "zombie": "*"
+    "zombie": "*",
+    "node-whois" : "*"
   },
   "devDependencies": {
     "mocha": "*",
