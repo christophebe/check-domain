@@ -33,7 +33,7 @@ module.exports = function (params, callback) {
       function(callback){
           whois.lookup(params.domain, function(error, result){
               if (error) {
-                log.error({"url" : params.domain, "step" : "check-domain.whois", "message" : "whois error", "options" : error});
+                log.error({"url" : params.domain, "step" : "check-domain.whois", "message" : "whois error", "options" : error.message});
                 callback(null, "noresult");
               }
               else {
@@ -45,7 +45,7 @@ module.exports = function (params, callback) {
       function(callback) {
           getPageRank(params.domain, function(error, result){
             if (error) {
-              log.error({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pageRank error", "options" : error});
+              log.error({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pageRank error", "options" : error.message});
               callback(null, -1);
             }
             else {
@@ -57,7 +57,7 @@ module.exports = function (params, callback) {
       function(callback) {
           checkOnOvh(params.domain, function(error, result){
             if (error) {
-              log.error({"url" : params.domain, "step" : "check-domain.checkOnOvh", "message" : "checkOnOvh error", "options" : error});
+              log.error({"url" : params.domain, "step" : "check-domain.checkOnOvh", "message" : "checkOnOvh error", "options" : error.message});
               callback(null, NO_DATA_FOUND);
             }
             else {
