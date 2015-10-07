@@ -4,6 +4,7 @@ var async       = require("async");
 var Browser     = require('zombie');
 var whois       = require('node-whois');
 var getPageRank = require('pagerank');
+var log         = require('crawler-ninja-logger').Logger;
 
 
 // HTTP response  will be in french, sorry guys ! :-)
@@ -26,11 +27,45 @@ var NOT_VALID_STATUS = "NOT-VALID";
 
 module.exports = function (params, callback) {
 
+    // if one error occurs, don't propagate it
+    // otherwise the complete parallel process will be on error
     async.parallel([
-
-      async.apply(whois.lookup, params.domain),
-      async.apply(getPageRank, params.domain),
-      async.apply(checkOnOvh, params),
+      function(callback){
+          whois.lookup(params.domain, function(error, result){
+              if (error) {
+                log.error({"url" : params.domain, "step" : "check-domain.whois", "message" : "whois error", "options" : error});
+                callback(null, "noresult");
+              }
+              else {
+                log.debug({"url" : params.domain, "step" : "check-domain.whois", "message" : "whois retrieved correclty"});
+                callback(null, result);
+              }
+          });
+      },
+      function(callback) {
+          getPageRank(params.domain, function(error, result){
+            if (error) {
+              log.error({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pageRank error", "options" : error});
+              callback(null, -1);
+            }
+            else {
+              log.debug({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pagerank retrieved correclty"});
+              callback(null, result);
+            }
+          });
+      },
+      function(callback) {
+          checkOnOvh(params.domain, function(error, result){
+            if (error) {
+              log.error({"url" : params.domain, "step" : "check-domain.checkOnOvh", "message" : "checkOnOvh error", "options" : error});
+              callback(null, NO_DATA_FOUND);
+            }
+            else {
+              log.debug({"url" : params.domain, "step" : "check-domain.checkOnOvh", "message" : "checkOnOvh retrieved correclty"});
+              callback(null, result);
+            }
+          });
+      }
 
     ], function(error, results){
         if (error) {
