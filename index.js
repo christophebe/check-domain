@@ -15,7 +15,7 @@ var NO_DATA_FOUND = "NO-DATA-CHECK-MANUALLY";
 var NOT_AVAILABLE_TEXT = "existe déjà";
 var NOT_AVAILABLE_STATUS = "NOT-AVAILABLE";
 
-var AVAILABLE_TEXT = "est disponible";
+var AVAILABLE_TEXT = "disponible";
 var AVAILABLE_STATUS = "AVAILABLE";
 
 var NOT_VALID_TEXT = "invalide";
@@ -90,31 +90,38 @@ function getWhoisValues(whois) {
 function checkOnOvh(params, callback) {
 
     var url = URL_CHECK_DOMAIN_OVH + "?" + HTTP_PARAM_DOMAIN + "=" + params.domain;
+    //console.log(url);
 
-    var browser = new Browser();
-    if (params.proxy) {
-      browser.proxy = params.proxy
-    }
+    var browser = new Browser({maxWait: 20000,loadCSS: false});
 
-    browser.fetch(url)
-      .then(function(response) {
-        if (response.status === 200)
-          return response.text();
-      })
-      .then(function(body) {
-        callback(null, buildOVHResult(body));
+    browser.visit(url, function (error) {
 
-      })
-      .catch(function(error) {
-        callback(error);
-      });
+        function pageLoaded(window) {
+                if (browser.html("body").indexOf(param.domain) > -1) {
+                  return true;
+                }
+                else {
+                  return false;
+                }
+        }
 
+        browser.wait({function: pageLoaded }, function() {
+            var body = browser.html("body")
+            callback(null, buildOVHResult(body));
+
+        })
+
+    });
 }
 
 function buildOVHResult (body) {
-  
+    //console.log(body);
     if (body.indexOf(PENDING_TEXT) > -1) {
       return PENDING_STATUS;
+    }
+
+    if (body.indexOf(NOT_VALID_TEXT) > -1) {
+      return status = NOT_VALID_STATUS;
     }
 
     if (body.indexOf(NOT_AVAILABLE_TEXT) > -1) {
@@ -123,10 +130,6 @@ function buildOVHResult (body) {
 
     if (body.indexOf(AVAILABLE_TEXT) > -1) {
       return status = AVAILABLE_STATUS;
-    }
-
-    if (body.indexOf(NOT_VALID_TEXT) > -1) {
-      return status = NOT_VALID_STATUS;
     }
 
     return NO_DATA_FOUND;
