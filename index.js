@@ -10,22 +10,22 @@ var log         = require('crawler-ninja-logger').Logger;
 // HTTP response  will be in french, sorry guys ! :-)
 var URL_CHECK_DOMAIN_OVH = "https://www.ovh.com/fr/cgi-bin/newOrder/order.cgi";
 var HTTP_PARAM_DOMAIN = "domain_domainChooser_domain";
-var NO_DATA_FOUND = "";
+var NO_DATA_FOUND = "NO-DATA-CHECK-MANUALLY";
 
-var NOT_AVAILABLE_TEXT = "n'est pas disponible à l'enregistrement";
+var NOT_AVAILABLE_TEXT = "existe déjà";
 var NOT_AVAILABLE_STATUS = "NOT-AVAILABLE";
 
 var AVAILABLE_TEXT = "est disponible";
 var AVAILABLE_STATUS = "AVAILABLE";
 
-var NOT_VALID_TEXT = "Nom de domaine invalide";
+var NOT_VALID_TEXT = "invalide";
 var NOT_VALID_STATUS = "NOT-VALID";
 
-var NOT_VALID_TEXT = "pending delete";
-var NOT_VALID_STATUS = "NOT-VALID";
+var PENDING_TEXT = "pendingDelete";
+var PENDING_STATUS = "PENDING-DELETE";
 
 
-module.exports = function (params, callback) {
+module.exports = function (params, endCallback) {
 
     // if one error occurs, don't propagate it
     // otherwise the complete parallel process will be on error
@@ -55,7 +55,7 @@ module.exports = function (params, callback) {
           });
       },
       function(callback) {
-          checkOnOvh(params.domain, function(error, result){
+          checkOnOvh(params, function(error, result){
             if (error) {
               log.error({"url" : params.domain, "step" : "check-domain.checkOnOvh", "message" : "checkOnOvh error", "options" : error.message});
               callback(null, NO_DATA_FOUND);
@@ -69,10 +69,10 @@ module.exports = function (params, callback) {
 
     ], function(error, results){
         if (error) {
-          return callback(error);
+          return endCallback(error);
         }
         var data = { domain : params.domain, whois : getWhoisValues(results[0]), pr : results[1], available : results[2] };
-        callback (null, data);
+        endCallback(null, data);
     });
 }
 
@@ -108,23 +108,27 @@ function checkOnOvh(params, callback) {
       .catch(function(error) {
         callback(error);
       });
+
 }
 
 function buildOVHResult (body) {
+  
+    if (body.indexOf(PENDING_TEXT) > -1) {
+      return PENDING_STATUS;
+    }
 
-  var status = NO_DATA_FOUND;
-  if (body.indexOf(NOT_AVAILABLE_TEXT) > -1) {
-    status = NOT_AVAILABLE_STATUS;
-  }
+    if (body.indexOf(NOT_AVAILABLE_TEXT) > -1) {
+      return NOT_AVAILABLE_STATUS;
+    }
 
-  if (body.indexOf(AVAILABLE_TEXT) > -1) {
-    status = AVAILABLE_STATUS;
-  }
+    if (body.indexOf(AVAILABLE_TEXT) > -1) {
+      return status = AVAILABLE_STATUS;
+    }
 
-  if (body.indexOf(NOT_VALID_TEXT) > -1) {
-    status = NOT_VALID_STATUS;
-  }
+    if (body.indexOf(NOT_VALID_TEXT) > -1) {
+      return status = NOT_VALID_STATUS;
+    }
 
-  return status;
+    return NO_DATA_FOUND;
 
 }

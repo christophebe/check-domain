@@ -4,33 +4,44 @@ var checkDomain = require("../index");
 
 describe('Domain Check', function() {
 
-        it('Check if a domain is not available 1', function(done) {
-            this.timeout(8000);
+        it('Check if a domain is not available', function(done) {
+            this.timeout(10000);
 
             checkDomain({domain : "google.com"}, function(error, result) {
-                console.log(result);
-                done();
+                  assert(result.available == 'NOT-AVAILABLE');
+                  done();
             });
 
         });
 
-        it('Check if a domain is available 2', function(done) {
-            this.timeout(8000);
+        it.only('Check if a domain is available', function(done) {
+            this.timeout(10000);
 
             checkDomain({domain : "test12345.be"}, function(error, result) {
-                console.log(result);
+                assert(result.available == 'AVAILABLE');
                 done();
             });
 
         });
 
-        it('Check if a domain is available 3', function(done) {
-            this.timeout(8000);
+        it('Check if a domain is invalid ', function(done) {
+            this.timeout(10000);
 
             checkDomain({domain : "test12345.aaaa"}, function(error, result) {
-                console.log(result);
+                assert(result.available == 'NOT-VALID');
                 done();
             });
 
         });
+
+        it('Check if a domain is pending delete ', function(done) {
+            this.timeout(10000);
+
+            checkDomain({domain : "durer-longtemps.com"}, function(error, result) {
+                assert(result.available == 'PENDING-DELETE');
+                done();
+            });
+
+        });
+
 });
