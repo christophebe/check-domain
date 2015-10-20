@@ -1,6 +1,6 @@
 {
   "name": "check-domain",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A simple component to check the status of a domain (whois, availability, expired, PR, TrustFlow, ...)",
   "repository": {
     "type": "git",
@@ -19,12 +19,14 @@
   "author": "Christophe Lombart",
   "license": "Apache",
   "dependencies": {
-    "crawler-ninja-logger" : "*",
     "async": "*",
+    "crawler-ninja-logger": "*",
+    "node-whois": "*",
     "pagerank": "*",
-    "request": "*",
-    "zombie": "*",
-    "node-whois" : "*"
+    "ping": "^0.1.10",
+    "request": "^2.65.0",
+
+    "zombie": "*"
   },
   "devDependencies": {
     "mocha": "*",
