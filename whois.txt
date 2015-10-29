@@ -1,0 +1,13 @@
+whois
+-----
+
+http://www.whoisxmlapi.com/whoisserver/WhoisService?domainName=womentraveltips101.com&username=christophe.lombart@gmail.com&password=clasamperbb&outputFormat=JSON
+
+
+https://www.whoisxmlapi.com/accountServices.php?servicetype=accountbalance&username=christophe.lombart@gmail.com&password=clasamperbb
+
+
+Availability
+------------
+
+https://www.whoisxmlapi.com/whoisserver/WhoisService?cmd=GET_DN_AVAILABILITY&domainName=womentraveltips101.com&username=christophe.lombart@gmail.com&password=clasamperbb&outputFormat=JSON

@@ -1,6 +1,5 @@
 npm-debug.log
 node_modules
 logs
-test/test-majestic.js
-majestic-structure.json
+test/test-majestic-whois.js
 todo.txt

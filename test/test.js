@@ -2,51 +2,43 @@ var assert      = require("assert");
 var checkDomain = require("../index");
 
 
+var NO_DATA_FOUND = "NO-DATA-CHECK-MANUALLY";
+
+var NOT_AVAILABLE_TEXT = "existe déjà";
+var NOT_AVAILABLE_STATUS = "NOT-AVAILABLE";
+
+var AVAILABLE_TEXT = "disponible";
+var AVAILABLE_STATUS = "AVAILABLE";
+
+var NOT_VALID_TEXT = "invalide";
+var NOT_VALID_STATUS = "NOT-VALID";
+
+var PENDING_TEXT = "pendingDelete";
+var PENDING_STATUS = "PENDING-DELETE";
+
+
 describe('Domain Check', function() {
 
-        it('Check if a domain is not available', function(done) {
+        it('Check ping & pr for an existing domain', function(done) {
             this.timeout(20000);
 
-            checkDomain({domain : "google.com"}, function(error, result) {
-                  //console.log(result);
-                  assert(result.available == 'NOT-AVAILABLE');
+            checkDomain({domain : "google.be"}, function(error, result) {
+
+                  assert(result.isAlive);
+                  assert(result.pr == 7);
                   done();
             });
 
         });
 
-        it('Check if a domain is available', function(done) {
+        it('Check ping & pr for an non existing domain', function(done) {
             this.timeout(20000);
 
             checkDomain({domain : "test12345.be"}, function(error, result) {
-                //console.log(result);
-                assert(result.available == 'AVAILABLE');
-                //assert(result.available == 'AVAILABLE');
+                assert(! result.isAlive);
+                assert(result.pr == -1);
                 done();
             });
 
         });
-
-        it('Check if a domain is invalid ', function(done) {
-            this.timeout(20000);
-
-            checkDomain({domain : "test12345.aaaa"}, function(error, result) {
-                //assert(result.available == 'NOT-VALID');
-                console.log(result);
-                done();
-            });
-
-        });
-
-        it('Check if a domain is pending delete ', function(done) {
-            this.timeout(20000);
-
-            checkDomain({domain : "durer-longtemps.com"}, function(error, result) {
-                assert(result.available == 'PENDING-DELETE');
-                //console.log(result);
-                done();
-            });
-
-        });
-
 });
