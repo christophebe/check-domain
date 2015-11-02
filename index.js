@@ -1,10 +1,13 @@
 var events      = require('events');
 var util        = require("util");
+var _           = require("underscore");
 var async       = require("async");
 var getPageRank = require('pagerank');
 var request     = require('request');
 var ping        = require('ping');
+var moment      = require('moment');
 var log         = require('crawler-ninja-logger').Logger;
+
 
 
 var URL_WHOIS = "https://www.whoisxmlapi.com/whoisserver/WhoisService";
@@ -37,10 +40,14 @@ var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
  *  - pr,
  *  - majestic (matching to the json result provided by the Majestic method GetIndexItemInfo  : DataTables.Results.Data[0]),
  *  - available(true or false)
- *  - whois (matching to the json structure provided by the whoisxmlapi). it contains also 3 extras attributes :
+ *  - whois (matching to the json structure provided by the whoisxmlapi).
+ *     for reasons of ease, it contains also 3 extras attributes :
  *     missingData : if true, there is no whois date for this domain
  *     isValidDomain : the domain name is not valid
  *     isPendingDelete : true if the domain is pending delete
+ *     createdDate
+ *     expiresDate
+ *     expiredWaitingTime
  */
 module.exports = function (params, callback) {
 
@@ -77,7 +84,13 @@ module.exports = function (params, callback) {
         }
 
         if (results[3]) {
-          data.available = results[3].DomainInfo.domainAvailability;;
+          if (results[3].DomainInfo) {
+              data.available = results[3].DomainInfo.domainAvailability;
+          }
+          else {
+              data.available = "no-data";
+          }
+
         }
 
         if (results[4]) {
@@ -109,8 +122,12 @@ function getWhoisData(params, command, callback) {
             outputFormat : "JSON"
           }
       }
+
+      // TODO : review this code ?
+      // Support only the commande GET_DN_AVAILABILITY
       if (command) {
         query.qs.cmd = command;
+        query.qs.getMode = "DNS_AND_WHOIS";
       }
 
       request(query, function (error, response, body) {
@@ -138,13 +155,39 @@ function getWhoisData(params, command, callback) {
               info.missingData = false;
             }
 
-            // check is the domain is pending deleted
+            // Check is the domain is pending deleted
             if (! command && info.WhoisRecord && info.WhoisRecord.registryData && info.WhoisRecord.registryData.status) {
 
                 info.isPendingDelete = info.WhoisRecord.registryData.status.indexOf(PENDING_DELETE) > -1;
             }
             else {
               info.isPendingDelete = false;
+            }
+
+            // Check created date
+            if (! command && info.WhoisRecord && info.WhoisRecord.createdDate) {
+              info.createdDate = info.WhoisRecord.createdDate;
+            }
+            else {
+              info.createdDate = 'no-data';
+            }
+
+            // Check expires date
+            if (! command && info.WhoisRecord && info.WhoisRecord.expiresDate ) {
+              info.expiresDate = info.WhoisRecord.expiresDate;
+              info.expiredWaitingTime = moment(info.WhoisRecord.expiresDate, moment.ISO_8601).fromNow();
+            }
+            else {
+              info.expiresDate = 'no-data';
+              info.expiredWaitingTime = 'no-data';
+            }
+
+            // Check domain age
+            if (! command && info.WhoisRecord && info.WhoisRecord.estimatedDomainAge ) {
+              info.estimatedDomainAge = (info.WhoisRecord.estimatedDomainAge / 365).toFixed(2);
+            }
+            else {
+              info.expiresDate = 'no-data';
             }
 
             return callback(null, info);

@@ -1,6 +1,6 @@
 {
   "name": "check-domain",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A simple component to check the status of a domain (whois, availability, expired, PR, TrustFlow, ...)",
   "repository": {
     "type": "git",
@@ -21,9 +21,11 @@
   "dependencies": {
     "async": "*",
     "crawler-ninja-logger": "*",
+    "moment": "^2.10.6",
     "pagerank": "*",
     "ping": "*",
-    "request": "*"
+    "request": "*",
+    "underscore": "^1.8.3"
   },
   "devDependencies": {
     "mocha": "*",
