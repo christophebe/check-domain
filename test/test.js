@@ -41,4 +41,13 @@ describe('Domain Check', function() {
             });
 
         });
+
+        it("Check ping, pr & google info for an existing domain", function(done){
+            this.timeout(20000);
+            checkDomain({domain : "rtbf.be", googleDomain : "google.be"}, function(error, result) {
+                //assert(! result.isAlive);
+                //assert(result.pr == -1);
+                done();
+            });
+        });
 });

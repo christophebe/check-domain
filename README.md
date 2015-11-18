@@ -27,19 +27,25 @@ checkDomain(
   {
     domain : "domainToCheck.com",
     majecticKey : "[add here your majestic key]",
-    whois : {user : "[your whoisxmlapi name]", password : "[your whoisxmlapi password]"}
+    whois : {user : "[your whoisxmlapi name]", password : "[your whoisxmlapi password]"},
+    onlyAvailability : false // optional, if true, the module will check only availability without getting the complete whois data (default : false)
   },
   function(error, result) {
+        console.log(result); // see the complete result structure
         console.log(result.isAlive);
         console.log(result.available);
         console.log(result.pr);
         console.log(result.majestic); // see the json structure provided by http://developer-support.majestic.com/api/commands/get-index-item-info.shtml
         console.log(result.whois);    // see the json structure provided by http://www.whoisxmlapi.com
 
-        // We add 3 extra field in the whois structure
-        console.log(result.whois.isPendingDelete);
+        // We add extra fields in the whois structure
         console.log(result.whois.isValidDomain);
-        console.log(result.whois.missingData);
+        console.log(result.whois.missingData);  // The whois database doesn't contain info for this domain
+        console.log(result.whois.isPendingDelete);
+        console.log(result.whois.createdDate);
+        console.log(result.whois.expiresDate);
+        console.log(result.whois.expiredWaitingTime);
+
 
   });
 

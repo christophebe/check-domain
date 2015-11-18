@@ -19,7 +19,7 @@ var PENDING_DELETE = "redemptionPeriod";
 var INVALID_DOMAIN_MESSAGE = "Unable to retrieve whois record for";
 var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
 
-//var URL_GOOGLE_SITE = "/search?q=site:";
+var URL_GOOGLE_SITE = "/search?q=site:";
 
 
 /**
@@ -56,7 +56,8 @@ module.exports = function (params, callback) {
       async.apply(getPr, params),
       async.apply(getMajesticInfo, params),
       async.apply(getWhoisData, params, PARAM_COMMAND_AVAILABLE), // Get availability
-      async.apply(getWhoisData, params, null) // Get whois
+      async.apply(getWhoisData, params, null)//,  // Get whois
+      //async.apply(getGoogleInfo, params)
 
       //,
       //async.apply(getGoogleInfo, params),
@@ -124,10 +125,16 @@ function getWhoisData(params, command, callback) {
       }
 
       // TODO : review this code ?
-      // Support only the commande GET_DN_AVAILABILITY
+      // Support only the command GET_DN_AVAILABILITY
       if (command) {
         query.qs.cmd = command;
         query.qs.getMode = "DNS_AND_WHOIS";
+      }
+      else {
+        // Check if we need to get the complete whois data set
+        if (params.onlyAvailability) {
+          return callback(null, emptyData());
+        }
       }
 
       request(query, function (error, response, body) {
@@ -187,7 +194,7 @@ function getWhoisData(params, command, callback) {
               info.estimatedDomainAge = (info.WhoisRecord.estimatedDomainAge / 365).toFixed(2);
             }
             else {
-              info.expiresDate = 'no-data';
+              info.estimatedDomainAge = 'no-data';
             }
 
             return callback(null, info);
@@ -261,21 +268,24 @@ function getMajesticInfo(params, callback) {
     }
 }
 
-
+/*
 function getGoogleInfo(params, callback) {
 
   if (params.googleDomain) {
       log.debug({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "Get Google Info on : " + params.googleDomain});
 
-      var googleUrl = "https://wwww." + googleDomain + URL_GOOGLE_SITE + params.domain;
+      var googleUrl = "https://www." + params.googleDomain + URL_GOOGLE_SITE + params.domain;
       request(googleUrl, function (error, response, body) {
           if (error) {
+            console.log(error);
             log.error({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "google request error", "options" : error.message});
             return callback(null, {});
           }
 
           if (response.statusCode == 200) {
             log.debug({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "Google info retrieve with status : " + response.statusCode});
+            console.log(body);
+            callback(null, {});
             //var info = JSON.parse(body);
             //callback(null, info.DataTables.Results.Data[0]);
           }
@@ -287,5 +297,18 @@ function getGoogleInfo(params, callback) {
   }
   else {
     callback();
+  }
+}
+*/
+
+function emptyData() {
+  return {
+      missingData : "true",
+      isValidDomain : "no-data",
+      isPendingDelete : "no-data",
+      createdDate : 'no-data',
+      expiresDate : 'no-data',
+      expiredWaitingTime : 'no-data',
+      estimatedDomainAge : 'no-data'
   }
 }
