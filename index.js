@@ -1,6 +1,6 @@
 var events      = require('events');
+var dns         = require('dns');
 var util        = require("util");
-var _           = require("underscore");
 var async       = require("async");
 var getPageRank = require('pagerank');
 var request     = require('request');
@@ -24,6 +24,7 @@ var URL_GOOGLE_SITE = "/search?q=site:";
 
 /**
  * Check informations on a domain
+ * - DNS resolve
  * - Ping
  * - Page Rank
  * - Backlinks, Truts Flow provided by the Majestic API
@@ -31,12 +32,15 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  * - Whois provided by whoisxmlapi.com
  * - Check if indexed by Google (primary & secondary index)
  *
- * @param a json object {domain, majecticKey, whois : {user, password}},
+ * @param a json object {domain, majecticKey, whois : {user, password}, onlyAvailability, checkIfAlive},
           The majesticKey is optional
           The whois is also optional. It match to whoisxmlapi.com API credential
+          noCheckIfDNSResolve : if true, the availability & the complte whois data is not retrieved if there is a correct DNS resolve (default false)
+          onlyAvailability : if true, the complete whois data is not retrieved, only the availability (default false)
  * @param callback(error, result). The result is a json object containing the following attributes :
  *  - domain,
- *  - isAlive,
+ *  - isDNSFound,
+ *  - ips : list IPS({adress, isAlive}) used for this domain,
  *  - pr,
  *  - majestic (matching to the json result provided by the Majestic method GetIndexItemInfo  : DataTables.Results.Data[0]),
  *  - available(true or false)
@@ -49,67 +53,138 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  *     expiresDate
  *     expiredWaitingTime
  */
-module.exports = function (params, callback) {
+module.exports = function (params, endCallback) {
 
-    async.parallel([
-      async.apply(getPing,params),
-      async.apply(getPr, params),
-      async.apply(getMajesticInfo, params),
-      async.apply(getWhoisData, params, PARAM_COMMAND_AVAILABLE), // Get availability
-      async.apply(getWhoisData, params, null)//,  // Get whois
-      //async.apply(getGoogleInfo, params)
-
-      //,
-      //async.apply(getGoogleInfo, params),
-
-    ], function(error, results){
-        if (error) {
-          return callback(error);
-        }
-
-        var data = {
-          domain : params.domain,
-          isAlive : results[0]
-        };
-
-        if (results[1]) {
-          data.pr = results[1];
-        }
-        else {
-          data.pr = -1;
-        }
-
-        if (results[2]) {
-
-          data.majestic = results[2];
-        }
-
-        if (results[3]) {
-          if (results[3].DomainInfo) {
-              data.available = results[3].DomainInfo.domainAvailability;
-          }
-          else {
-              data.available = "no-data";
-          }
-
-        }
-
-        if (results[4]) {
-          data.whois = results[4];
-        }
-
-        callback(null, data);
-    });
+  async.waterfall([
+      function(callback) {
+          getGeneralInfos(params, callback);
+      },
+      function(generalInfo, callback) {
+          getOtherMetrics(generalInfo, params, callback);
+      }
+  ], function (error, data) {
+      endCallback(error, data);
+  });
 }
 
-function getPing(params, callback) {
-  ping.sys.probe(params.domain, function(isAlive){
-      callback(null, isAlive);
+function getGeneralInfos(params, endCallback) {
+
+  async.waterfall([
+      function(callback) {
+          getIp(params, callback);
+      },
+      function(dnsInfo, callback) {
+          getPing(dnsInfo, callback);
+      }
+  ], function (error, data) {
+      endCallback(error, data);
   });
 
 }
 
-function getWhoisData(params, command, callback) {
+function getIp(params, callback) {
+
+    dns.lookup(params.domain, function(error, address){
+
+          var data = {};
+
+          if (error) {
+              data.isDNSFound = false;
+          }
+          else {
+              data.isDNSFound = true;
+              data.ip = address;
+          }
+
+          callback(null, data);
+    });
+}
+
+
+function getPing(dnsInfo, callback) {
+
+    if (! dnsInfo.isDNSFound) {
+        dnsInfo.isAlive = false;
+        return callback(null, dnsInfo);
+    }
+
+    ping.sys.probe(dnsInfo.ip, function(isAlive){
+            dnsInfo.isAlive = isAlive;
+            callback(null, dnsInfo);
+    });
+
+}
+
+function getOtherMetrics(generalInfo, params, callback) {
+  async.parallel([
+    async.apply(getPr, params),
+    async.apply(getMajesticData, params),
+    async.apply(getWhoisData, generalInfo, params, PARAM_COMMAND_AVAILABLE), // Get availability
+    async.apply(getWhoisData, generalInfo, params, null)//,  // Get whois
+    //async.apply(getGoogleInfo, params)
+
+  ], function(error, results){
+      if (error) {
+        return callback(error);
+      }
+
+      var data = {
+        domain : params.domain,
+        isDNSFound : generalInfo.isDNSFound
+      };
+
+      if (generalInfo.ip) {
+          data.ip = generalInfo.ip;
+          data.isAlive = generalInfo.isAlive;
+      }
+      else {
+          data.ip = "unknown";
+          data.isAlive = false; 
+      }
+
+      if (results[0]) {
+        data.pr = results[0];
+      }
+      else {
+        data.pr = -1;
+      }
+
+      if (results[1]) {
+
+        data.majestic = results[1];
+      }
+
+      if (results[2]) {
+        if (results[2].DomainInfo) {
+            data.available = results[2].DomainInfo.domainAvailability;
+        }
+        else {
+            if (data.isDNSFound)
+              data.available = "UNAVAILABLE";
+            else
+            data.available = "no-data";
+        }
+
+      }
+
+      if (results[3]) {
+        data.whois = results[3];
+      }
+
+      callback(null, data);
+  });
+
+}
+
+
+function getWhoisData(generalInfo, params, command, callback) {
+
+
+  if (params.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+      var result = emptyWhoisData();
+      return callback(null, result);
+  }
+
 
   if (params.whois && params.whois.user && params.whois.password) {
       log.debug({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Get whoisxmlapi data with user : " + params.whois.user});
@@ -124,8 +199,6 @@ function getWhoisData(params, command, callback) {
           }
       }
 
-      // TODO : review this code ?
-      // Support only the command GET_DN_AVAILABILITY
       if (command) {
         query.qs.cmd = command;
         query.qs.getMode = "DNS_AND_WHOIS";
@@ -133,7 +206,7 @@ function getWhoisData(params, command, callback) {
       else {
         // Check if we need to get the complete whois data set
         if (params.onlyAvailability) {
-          return callback(null, emptyData());
+          return callback(null, emptyWhoisData());
         }
       }
 
@@ -207,7 +280,7 @@ function getWhoisData(params, command, callback) {
       });
   }
   else {
-    callback();
+    callback(null, emptyWhoisData());
   }
 
 }
@@ -228,9 +301,9 @@ function getPr(params, callback) {
 
 
 
-function getMajesticInfo(params, callback) {
+function getMajesticData(params, callback) {
     if (params.majecticKey) {
-        log.debug({"url" : params.domain, "step" : "check-domain.getMajesticInfo", "message" : "Get Majectic Info with the key : " + params.majecticKey});
+        log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Get Majectic Info with the key : " + params.majecticKey});
 
         var query = {
            url : URL_MAJESTIC_GET_INFO,
@@ -245,12 +318,12 @@ function getMajesticInfo(params, callback) {
 
         request(query, function (error, response, body) {
             if (error) {
-              log.error({"url" : params.domain, "step" : "check-domain.getMajesticInfo", "message" : "Majestic request error", "options" : error.message});
+              log.error({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majestic request error", "options" : error.message});
               return callback(error);
             }
 
             if (response.statusCode == 200) {
-              log.debug({"url" : params.domain, "step" : "check-domain.getMajesticInfo", "message" : "Majectic info retrieved correclty"});
+              log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majectic info retrieved correclty"});
 
               var info = JSON.parse(body);
 
@@ -258,7 +331,7 @@ function getMajesticInfo(params, callback) {
             }
             else {
 
-              log.error({"url" : params.domain, "step" : "check-domain.getMajesticInfo", "message" : "Majestic request error", "options" : response.statusCode});
+              log.error({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majestic request error", "options" : response.statusCode});
               callback(new Error("Impossible to get the Majestic data, check your credential"));
             }
         });
@@ -301,7 +374,7 @@ function getGoogleInfo(params, callback) {
 }
 */
 
-function emptyData() {
+function emptyWhoisData() {
   return {
       missingData : "true",
       isValidDomain : "no-data",

@@ -1,6 +1,6 @@
 {
   "name": "check-domain",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A simple component to check the status of a domain (whois, availability, expired, PR, TrustFlow, ...)",
   "repository": {
     "type": "git",
@@ -23,7 +23,7 @@
     "crawler-ninja-logger": "*",
     "moment": "^2.10.6",
     "pagerank": "*",
-    "ping": "*",
+    "ping": "^0.1.10",
     "request": "*",
     "underscore": "^1.8.3"
   },

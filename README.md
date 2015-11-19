@@ -1,5 +1,8 @@
 Retrieve informations about one domain:
+- IP adress
+- DNS resolution
 - Ping
+- domains on the same ip
 - Page Rank
 - Backlinks, Truts Flow, Citation Flow and other metrics provided by the Majestic API
 - Availability provided by whoisxmlapi.com
@@ -9,7 +12,7 @@ TODO :
 - Check the number of pages indexed by Google (primary & secondary index)
 - other ideas are welcome !
 
-In order to get all info, you need to provide your majestic API key and your whoisxmlapi user & password. Without those setting, it returns only ping & PR.
+In order to get all info, you need to provide your majestic API key and your whoisxmlapi user & password. Without those setting, it returns only dns, ip, ping & PR.
 
 Install this module in your node project
 ----------------------------------------
@@ -28,10 +31,13 @@ checkDomain(
     domain : "domainToCheck.com",
     majecticKey : "[add here your majestic key]",
     whois : {user : "[your whoisxmlapi name]", password : "[your whoisxmlapi password]"},
-    onlyAvailability : false // optional, if true, the module will check only availability without getting the complete whois data (default : false)
+    noCheckIfDNSResolve : true, // if true, the availability & the complte whois data is not retrieved if there is a correct DNS resolve (default false)
+    onlyAvailability :  true //the complete whois data is not retrieved, only the availability (default false)
   },
   function(error, result) {
         console.log(result); // see the complete result structure
+        console.log(result.isDNSFound);
+        console.log(result.ip);
         console.log(result.isAlive);
         console.log(result.available);
         console.log(result.pr);
