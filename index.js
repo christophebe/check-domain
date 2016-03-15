@@ -77,7 +77,7 @@ function getIp(params, callback) {
 
     dns.lookup(params.domain, function(error, address){
 
-          var data = {};
+          var data = {domain : params.domain};
 
           if (error) {
               data.isDNSFound = false;
