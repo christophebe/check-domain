@@ -23,9 +23,11 @@ describe('Domain Check', function() {
             this.timeout(20000);
 
             checkDomain({domain : "google.be"}, function(error, result) {
-
+                  //console.log(result);
                   assert(result.isAlive);
-                  assert(result.pr == 7);
+                  assert(result.isDNSFound);
+                  assert(! result.isAvailable);
+
                   done();
             });
 
@@ -35,16 +37,23 @@ describe('Domain Check', function() {
             this.timeout(20000);
 
             checkDomain({domain : "test12345.be"}, function(error, result) {
+                //console.log(result);
                 assert(! result.isAlive);
-                assert(result.pr == -1);
+                assert(! result.isDNSFound);
+
+
+                //assert(result.pr === -1);
                 done();
             });
 
         });
 
+
+        // TODO : Add google infos
         it("Check ping, pr & google info for an existing domain", function(done){
             this.timeout(20000);
             checkDomain({domain : "rtbf.be", googleDomain : "google.be"}, function(error, result) {
+                //console.log(result);
                 //assert(! result.isAlive);
                 //assert(result.pr == -1);
                 done();

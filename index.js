@@ -2,7 +2,6 @@ var events      = require('events');
 var dns         = require('dns');
 var util        = require("util");
 var async       = require("async");
-var getPageRank = require('pagerank');
 var request     = require('request');
 var ping        = require('ping');
 var moment      = require('moment');
@@ -15,7 +14,8 @@ var URL_MAJESTIC_GET_INFO = "http://api.majestic.com/api/json";
 
 var PARAM_COMMAND_AVAILABLE = "GET_DN_AVAILABILITY";
 
-var PENDING_DELETE = "redemptionPeriod";
+var REDEMPTION_PERIOD = "redemptionPeriod";
+var PENDING_DELETE = "pendingDelete";
 var INVALID_DOMAIN_MESSAGE = "Unable to retrieve whois record for";
 var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
 
@@ -26,29 +26,29 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  * Check informations on a domain
  * - DNS resolve
  * - Ping
- * - Page Rank
  * - Backlinks, Truts Flow provided by the Majestic API
  * - Availability provided by whoisxmlapi.com
  * - Whois provided by whoisxmlapi.com
  * - Check if indexed by Google (primary & secondary index)
  *
- * @param a json object {domain, majecticKey, whois : {user, password}, onlyAvailability, checkIfAlive},
+ * @param a json object {domain, majecticKey, whois : {user, password}, checkIfAlive, minTrustFlow},
           The majesticKey is optional
           The whois is also optional. It match to whoisxmlapi.com API credential
-          noCheckIfDNSResolve : if true, the availability & the complte whois data is not retrieved if there is a correct DNS resolve (default false)
-          onlyAvailability : if true, the complete whois data is not retrieved, only the availability (default false)
+          noCheckIfDNSResolve : if true, the availability & the complete whois data is not retrieved if there is a correct DNS resolve (default false)
+          minTrustFlow : the min trustflow value required to retrieve availability and whois data
  * @param callback(error, result). The result is a json object containing the following attributes :
  *  - domain,
  *  - isDNSFound,
  *  - ips : list IPS({adress, isAlive}) used for this domain,
- *  - pr,
  *  - majestic (matching to the json result provided by the Majestic method GetIndexItemInfo  : DataTables.Results.Data[0]),
- *  - available(true or false)
+ *  - isAvailable(true or false)
  *  - whois (matching to the json structure provided by the whoisxmlapi).
- *     for reasons of ease, it contains also 3 extras attributes :
+ *     for reasons of simplicity, it contains also extras attributes :
  *     missingData : if true, there is no whois date for this domain
  *     isValidDomain : the domain name is not valid
  *     isPendingDelete : true if the domain is pending delete
+ *     isRedemptionPeriod : True id the domain is in redemption period
+ *     redemptionPeriod
  *     createdDate
  *     expiresDate
  *     expiredWaitingTime
@@ -57,30 +57,21 @@ module.exports = function (params, endCallback) {
 
   async.waterfall([
       function(callback) {
-          getGeneralInfos(params, callback);
-      },
-      function(generalInfo, callback) {
-          getOtherMetrics(generalInfo, params, callback);
-      }
-  ], function (error, data) {
-      endCallback(error, data);
-  });
-}
-
-function getGeneralInfos(params, endCallback) {
-
-  async.waterfall([
-      function(callback) {
           getIp(params, callback);
       },
-      function(dnsInfo, callback) {
-          getPing(dnsInfo, callback);
+      function(data, callback) {
+          getPing(data, callback);
+      },
+      function(data, callback) {
+          getMajesticData(data, params, callback);
+      },
+      function(data, callback) {
+          getOtherMetrics(data, params, callback);
       }
   ], function (error, data) {
       endCallback(error, data);
   });
-
-}
+};
 
 function getIp(params, callback) {
 
@@ -117,10 +108,9 @@ function getPing(dnsInfo, callback) {
 
 function getOtherMetrics(generalInfo, params, callback) {
   async.parallel([
-    async.apply(getPr, params),
-    async.apply(getMajesticData, params),
-    async.apply(getWhoisData, generalInfo, params, PARAM_COMMAND_AVAILABLE), // Get availability
-    async.apply(getWhoisData, generalInfo, params, null)//,  // Get whois
+    async.apply(getWhoisData, generalInfo, params)
+
+    // In progress ...
     //async.apply(getGoogleInfo, params)
 
   ], function(error, results){
@@ -128,47 +118,26 @@ function getOtherMetrics(generalInfo, params, callback) {
         return callback(error);
       }
 
-      var data = {
-        domain : params.domain,
-        isDNSFound : generalInfo.isDNSFound
-      };
+      var data = generalInfo;
 
-      if (generalInfo.ip) {
-          data.ip = generalInfo.ip;
-          data.isAlive = generalInfo.isAlive;
-      }
-      else {
-          data.ip = "unknown";
-          data.isAlive = false; 
+      if (results[0]) {
+        data.whois = results[0];
       }
 
       if (results[0]) {
-        data.pr = results[0];
-      }
-      else {
-        data.pr = -1;
-      }
-
-      if (results[1]) {
-
-        data.majestic = results[1];
-      }
-
-      if (results[2]) {
-        if (results[2].DomainInfo) {
-            data.available = results[2].DomainInfo.domainAvailability;
+        if (data.isDNSFound) {
+          data.isAvailable = false;
         }
         else {
-            if (data.isDNSFound)
-              data.available = "UNAVAILABLE";
-            else
-            data.available = "no-data";
+          if (data.whois && data.whois.status) {
+            data.isAvailable = (data.whois.status === "AVAILABLE");
+          }
+          else {
+            data.isAvailable = false;
+          }
+
         }
 
-      }
-
-      if (results[3]) {
-        data.whois = results[3];
       }
 
       callback(null, data);
@@ -177,7 +146,7 @@ function getOtherMetrics(generalInfo, params, callback) {
 }
 
 
-function getWhoisData(generalInfo, params, command, callback) {
+function getWhoisData(generalInfo, params, callback) {
 
 
   if (params.noCheckIfDNSResolve && generalInfo.isDNSFound) {
@@ -185,6 +154,10 @@ function getWhoisData(generalInfo, params, command, callback) {
       return callback(null, result);
   }
 
+  if (params.minTrustFlow && generalInfo.majestic.TrustFlow < params.minTrustFlow) {
+      var result = emptyWhoisData();
+      return callback(null, result);
+  }
 
   if (params.whois && params.whois.user && params.whois.password) {
       log.debug({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Get whoisxmlapi data with user : " + params.whois.user});
@@ -197,25 +170,16 @@ function getWhoisData(generalInfo, params, command, callback) {
             domainName : params.domain,
             outputFormat : "JSON"
           }
-      }
+      };
 
-      if (command) {
-        query.qs.cmd = command;
-        query.qs.getMode = "DNS_AND_WHOIS";
-      }
-      else {
-        // Check if we need to get the complete whois data set
-        if (params.onlyAvailability) {
-          return callback(null, emptyWhoisData());
-        }
-      }
+      query.qs.getMode = "DNS_AND_WHOIS";
 
       request(query, function (error, response, body) {
           if (error) {
             log.error({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "whoisxmlapi request error", "options" : error});
             return callback(error);
           }
-          if (response.statusCode == 200) {
+          if (response.statusCode === 200) {
             log.debug({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Whoisxmlapi info retrieved correclty"});
             var info = JSON.parse(body);
 
@@ -228,7 +192,7 @@ function getWhoisData(generalInfo, params, command, callback) {
             }
 
             // Check if there a whois data for this domain
-            if (info.WhoisRecord && info.WhoisRecord.dataError && info.WhoisRecord.dataError == MISSING_WHOIS_DATA_MESSAGE) {
+            if (info.WhoisRecord && info.WhoisRecord.dataError && info.WhoisRecord.dataError === MISSING_WHOIS_DATA_MESSAGE) {
               info.missingData = true;
             }
             else {
@@ -236,16 +200,18 @@ function getWhoisData(generalInfo, params, command, callback) {
             }
 
             // Check is the domain is pending deleted
-            if (! command && info.WhoisRecord && info.WhoisRecord.registryData && info.WhoisRecord.registryData.status) {
-
+            if (info.WhoisRecord && info.WhoisRecord.registryData && info.WhoisRecord.registryData.status) {
+                info.status = info.WhoisRecord.registryData.status;
                 info.isPendingDelete = info.WhoisRecord.registryData.status.indexOf(PENDING_DELETE) > -1;
+                info.isRedemptionPeriod = info.WhoisRecord.registryData.status.indexOf(REDEMPTION_PERIOD) > -1;
             }
             else {
-              info.isPendingDelete = false;
+              info.isPendingDelete = 'no-data';
+              info.isRedemptionPeriod = 'no-data';
             }
 
             // Check created date
-            if (! command && info.WhoisRecord && info.WhoisRecord.createdDate) {
+            if (info.WhoisRecord && info.WhoisRecord.createdDate) {
               info.createdDate = info.WhoisRecord.createdDate;
             }
             else {
@@ -253,7 +219,7 @@ function getWhoisData(generalInfo, params, command, callback) {
             }
 
             // Check expires date
-            if (! command && info.WhoisRecord && info.WhoisRecord.expiresDate ) {
+            if (info.WhoisRecord && info.WhoisRecord.expiresDate ) {
               info.expiresDate = info.WhoisRecord.expiresDate;
               info.expiredWaitingTime = moment(info.WhoisRecord.expiresDate, moment.ISO_8601).fromNow();
             }
@@ -263,7 +229,7 @@ function getWhoisData(generalInfo, params, command, callback) {
             }
 
             // Check domain age
-            if (! command && info.WhoisRecord && info.WhoisRecord.estimatedDomainAge ) {
+            if (info.WhoisRecord && info.WhoisRecord.estimatedDomainAge ) {
               info.estimatedDomainAge = (info.WhoisRecord.estimatedDomainAge / 365).toFixed(2);
             }
             else {
@@ -285,23 +251,7 @@ function getWhoisData(generalInfo, params, command, callback) {
 
 }
 
-function getPr(params, callback) {
-    getPageRank(params.domain, function(error, result){
-      if (error) {
-        log.error({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pageRank error", "options" : error.message});
-        callback(null, -1);
-      }
-      else {
-        log.debug({"url" : params.domain, "step" : "check-domain.pageRank", "message" : "pagerank retrieved correclty"});
-        callback(null, result);
-      }
-    });
-}
-
-
-
-
-function getMajesticData(params, callback) {
+function getMajesticData(generalInfo, params, callback) {
     if (params.majecticKey) {
         log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Get Majectic Info with the key : " + params.majecticKey});
 
@@ -314,7 +264,7 @@ function getMajesticData(params, callback) {
              items : 1,
              item0 : params.domain
            }
-        }
+        };
 
         request(query, function (error, response, body) {
             if (error) {
@@ -322,12 +272,12 @@ function getMajesticData(params, callback) {
               return callback(error);
             }
 
-            if (response.statusCode == 200) {
+            if (response.statusCode === 200) {
               log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majectic info retrieved correclty"});
 
               var info = JSON.parse(body);
-
-              callback(null, info.DataTables.Results.Data[0]);
+              generalInfo.majestic = info.DataTables.Results.Data[0];
+              callback(null, generalInfo);
             }
             else {
 
@@ -337,7 +287,8 @@ function getMajesticData(params, callback) {
         });
     }
     else {
-      callback();
+      generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "NO-MAJESTIC-KEY"}; //Dummy json if there is no majesticKey
+      callback(null, generalInfo);
     }
 }
 
@@ -379,9 +330,10 @@ function emptyWhoisData() {
       missingData : "true",
       isValidDomain : "no-data",
       isPendingDelete : "no-data",
+      isRedemptionPeriod : "no-data",
       createdDate : 'no-data',
       expiresDate : 'no-data',
       expiredWaitingTime : 'no-data',
       estimatedDomainAge : 'no-data'
-  }
+  };
 }
