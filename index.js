@@ -73,11 +73,31 @@ module.exports = function (params, endCallback) {
   });
 };
 
-function getIp(params, callback) {
+function getIp(params, endCallback) {
 
-    dns.lookup(params.domain, function(error, address){
+    async.waterfall([
+        function(callback) {
+            lookup(params.domain, false, callback);
+        },
+        function(data, callback) {
+            if (data.isDNSFound) {
+              return callback(null, data);
+            }
+            lookup(params.domain, true, callback);
+        }
+    ], function (error, data) {
 
-          var data = {domain : params.domain};
+        endCallback(error, data);
+    });
+
+}
+
+
+
+function lookup(domain, withWWW, callback) {
+    dns.lookup(withWWW ? "www." + domain : domain, function(error, address){
+
+          var data = {domain : domain, withWWW : withWWW};
 
           if (error) {
               data.isDNSFound = false;
