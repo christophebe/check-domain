@@ -53,40 +53,45 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  *     expiresDate
  *     expiredWaitingTime
  */
-module.exports = function (params, endCallback) {
+module.exports = function (options, endCallback) {
 
   async.waterfall([
       function(callback) {
-          getIp(params, callback);
+          getIp(options, callback);
       },
       function(data, callback) {
           getPing(data, callback);
       },
       function(data, callback) {
-          getMajesticData(data, params, callback);
+          getMajesticData(data, options, callback);
       },
       function(data, callback) {
-          getOtherMetrics(data, params, callback);
+          getOtherMetrics(data, options, callback);
       }
   ], function (error, data) {
+      if (error) {
+        logError("Error when checking domain", options.domain, error );
+      }
+      else {
+        logInfo("End of checking domain", options.domain, data);
+      }
       endCallback(error, data);
   });
 };
 
-function getIp(params, endCallback) {
+function getIp(options, endCallback) {
 
     async.waterfall([
         function(callback) {
-            lookup(params.domain, false, callback);
+            lookup(options.domain, false, callback);
         },
         function(data, callback) {
             if (data.isDNSFound) {
               return callback(null, data);
             }
-            lookup(params.domain, true, callback);
+            lookup(options.domain, true, callback);
         }
     ], function (error, data) {
-
         endCallback(error, data);
     });
 
@@ -126,12 +131,12 @@ function getPing(dnsInfo, callback) {
 
 }
 
-function getOtherMetrics(generalInfo, params, callback) {
+function getOtherMetrics(generalInfo, options, callback) {
   async.parallel([
-    async.apply(getWhoisData, generalInfo, params)
+    async.apply(getWhoisData, generalInfo, options)
 
     // In progress ...
-    //async.apply(getGoogleInfo, params)
+    //async.apply(getGoogleInfo, options)
 
   ], function(error, results){
       if (error) {
@@ -166,28 +171,26 @@ function getOtherMetrics(generalInfo, params, callback) {
 }
 
 
-function getWhoisData(generalInfo, params, callback) {
+function getWhoisData(generalInfo, options, callback) {
 
 
-  if (params.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+  if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
       var result = emptyWhoisData();
       return callback(null, result);
   }
 
-  if (params.minTrustFlow && generalInfo.majestic.TrustFlow < params.minTrustFlow) {
+  if (options.minTrustFlow && generalInfo.majestic.TrustFlow < options.minTrustFlow) {
       var result = emptyWhoisData();
       return callback(null, result);
   }
 
-  if (params.whois && params.whois.user && params.whois.password) {
-      log.debug({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Get whoisxmlapi data with user : " + params.whois.user});
-
+  if (options.whois && options.whois.user && options.whois.password) {
       var query = {
           url : URL_WHOIS,
           qs : {
-            username : params.whois.user,
-            password : params.whois.password,
-            domainName : params.domain,
+            username : options.whois.user,
+            password : options.whois.password,
+            domainName : options.domain,
             outputFormat : "JSON"
           }
       };
@@ -196,11 +199,11 @@ function getWhoisData(generalInfo, params, callback) {
 
       request(query, function (error, response, body) {
           if (error) {
-            log.error({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "whoisxmlapi request error", "options" : error});
+            logError( "whoisxmlapi request error", options.domain, error);
             return callback(error);
           }
           if (response.statusCode === 200) {
-            log.debug({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Whoisxmlapi info retrieved correclty"});
+
             var info = JSON.parse(body);
 
             // Check if the domains is valid
@@ -259,9 +262,9 @@ function getWhoisData(generalInfo, params, callback) {
             return callback(null, info);
           }
           else {
-
-            log.error({"url" : params.domain, "step" : "check-domain.getWhoisData", "message" : "Whoisxmlapi request error", "options" : response.statusCode});
-            callback(new Error("Impossible to get the Whoisxmlapi data, check your credential !"));
+            error = new Error("Impossible to get the Whoisxmlapi data, check your credential !");
+            logError("Whoisxmlapi http request error : " + response.statusCode, options.domain, error);
+            callback(error);
           }
       });
   }
@@ -271,38 +274,34 @@ function getWhoisData(generalInfo, params, callback) {
 
 }
 
-function getMajesticData(generalInfo, params, callback) {
-    if (params.majecticKey) {
-        log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Get Majectic Info with the key : " + params.majecticKey});
-
+function getMajesticData(generalInfo, options, callback) {
+    if (options.majecticKey) {
         var query = {
            url : URL_MAJESTIC_GET_INFO,
            qs : {
              cmd : "GetIndexItemInfo",
              datasource : "fresh",
-             app_api_key : params.majecticKey,
+             app_api_key : options.majecticKey,
              items : 1,
-             item0 : params.domain
+             item0 : options.domain
            }
         };
 
         request(query, function (error, response, body) {
             if (error) {
-              log.error({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majestic request error", "options" : error.message});
+              logError("Majestic request error", options.domain, error);
               return callback(error);
             }
 
             if (response.statusCode === 200) {
-              log.debug({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majectic info retrieved correclty"});
-
               var info = JSON.parse(body);
               generalInfo.majestic = info.DataTables.Results.Data[0];
               callback(null, generalInfo);
             }
             else {
-
-              log.error({"url" : params.domain, "step" : "check-domain.getMajesticData", "message" : "Majestic request error", "options" : response.statusCode});
-              callback(new Error("Impossible to get the Majestic data, check your credential"));
+              error = new Error("Impossible to get the Majestic data, check your credential");
+              logError("Majestic http request error : " + response.statusCode, options.domain, error);
+              callback(error);
             }
         });
     }
@@ -313,28 +312,28 @@ function getMajesticData(generalInfo, params, callback) {
 }
 
 /*
-function getGoogleInfo(params, callback) {
+function getGoogleInfo(options, callback) {
 
-  if (params.googleDomain) {
-      log.debug({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "Get Google Info on : " + params.googleDomain});
+  if (options.googleDomain) {
+      log.debug({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "Get Google Info on : " + options.googleDomain});
 
-      var googleUrl = "https://www." + params.googleDomain + URL_GOOGLE_SITE + params.domain;
+      var googleUrl = "https://www." + options.googleDomain + URL_GOOGLE_SITE + options.domain;
       request(googleUrl, function (error, response, body) {
           if (error) {
             console.log(error);
-            log.error({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "google request error", "options" : error.message});
+            log.error({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "google request error", "options" : error.message});
             return callback(null, {});
           }
 
           if (response.statusCode == 200) {
-            log.debug({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "Google info retrieve with status : " + response.statusCode});
+            log.debug({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "Google info retrieve with status : " + response.statusCode});
             console.log(body);
             callback(null, {});
             //var info = JSON.parse(body);
             //callback(null, info.DataTables.Results.Data[0]);
           }
           else {
-            log.error({"url" : params.domain, "step" : "check-domain.getGoogleInfo", "message" : "majestif request error", "options" : response.statusCode});
+            log.error({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "majestif request error", "options" : response.statusCode});
             callback(null, {});
           }
       });
@@ -356,4 +355,12 @@ function emptyWhoisData() {
       expiredWaitingTime : 'no-data',
       estimatedDomainAge : 'no-data'
   };
+}
+
+function logInfo(message, domain, options) {
+  log.info({module : "check-domains", message : message, domain : domain, options : options});
+}
+
+function logError(message, domain, options, error) {
+  log.error({module : "check-domains", message : message, domain : domain , error : error, options});
 }

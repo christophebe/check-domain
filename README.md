@@ -31,7 +31,7 @@ checkDomain(
     majecticKey : "[add here your majestic key]",
     whois : {user : "[your whoisxmlapi name]", password : "[your whoisxmlapi password]"},
     noCheckIfDNSResolve : true, // if true, the availability & the complte whois data is not retrieved if there is a correct DNS resolve (default false),
-    minTrustFlow : 50 // the min trustflow value required to retrieve availability and whois data
+    minTrustFlow : 35 // the min trustflow value required to retrieve availability and whois data
 
   },
   function(error, result) {
