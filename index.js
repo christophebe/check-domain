@@ -34,7 +34,7 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  * @param a json object {domain, majecticKey, whois : {user, password}, checkIfAlive, minTrustFlow},
           The majesticKey is optional
           The whois is also optional. It match to whoisxmlapi.com API credential
-          noCheckIfDNSResolve : if true, the availability & the complete whois data is not retrieved if there is a correct DNS resolve (default false)
+          noCheckIfDNSResolve : if true, the majestic & the whois data are not retrieved if there is a correct DNS resolved
           minTrustFlow : the min trustflow value required to retrieve availability and whois data
  * @param callback(error, result). The result is a json object containing the following attributes :
  *  - domain,
@@ -286,6 +286,11 @@ function getMajesticData(generalInfo, options, callback) {
              item0 : options.domain
            }
         };
+
+        if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+          generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "N0-CHECK-DNS-RESOLVED"}; //Dummy json if there is no majesticKey
+          return callback(null, generalInfo);
+        }
 
         request(query, function (error, response, body) {
             if (error) {
