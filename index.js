@@ -199,8 +199,8 @@ function getWhoisData(generalInfo, options, callback) {
 
       request(query, function (error, response, body) {
           if (error) {
-            logError( "whoisxmlapi request error", options.domain, error);
-            return callback(error);
+            logError( "whoisxmlapi request error, return empty whois data", options.domain, error);
+            return callback(null, emptyWhoisData());
           }
           if (response.statusCode === 200) {
 
@@ -264,7 +264,7 @@ function getWhoisData(generalInfo, options, callback) {
           else {
             error = new Error("Impossible to get the Whoisxmlapi data, check your credential !");
             logError("Whoisxmlapi http request error : " + response.statusCode, options.domain, error);
-            callback(error);
+            callback(null, emptyWhoisData());
           }
       });
   }
