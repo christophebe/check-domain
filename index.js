@@ -5,12 +5,15 @@ var async       = require("async");
 var request     = require('request');
 var ping        = require('ping');
 var moment      = require('moment');
+var _           = require('underscore');
+var serp        = require('serp');
 var log         = require('crawler-ninja-logger').Logger;
 
 
 
 var URL_WHOIS = "https://www.whoisxmlapi.com/whoisserver/WhoisService";
 var URL_MAJESTIC_GET_INFO = "http://api.majestic.com/api/json";
+var URL_SEMRUSH_GET_DATA = "http://api.semrush.com/";
 
 var PARAM_COMMAND_AVAILABLE = "GET_DN_AVAILABILITY";
 
@@ -18,9 +21,6 @@ var REDEMPTION_PERIOD = "redemptionPeriod";
 var PENDING_DELETE = "pendingDelete";
 var INVALID_DOMAIN_MESSAGE = "Unable to retrieve whois record for";
 var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
-
-var URL_GOOGLE_SITE = "/search?q=site:";
-
 
 /**
  * Check informations on a domain
@@ -41,6 +41,7 @@ var URL_GOOGLE_SITE = "/search?q=site:";
  *  - isDNSFound,
  *  - ips : list IPS({adress, isAlive}) used for this domain,
  *  - majestic (matching to the json result provided by the Majestic method GetIndexItemInfo  : DataTables.Results.Data[0]),
+ *  - semrush data
  *  - isAvailable(true or false)
  *  - whois (matching to the json structure provided by the whoisxmlapi).
  *     for reasons of simplicity, it contains also extras attributes :
@@ -133,10 +134,10 @@ function getPing(dnsInfo, callback) {
 
 function getOtherMetrics(generalInfo, options, callback) {
   async.parallel([
-    async.apply(getWhoisData, generalInfo, options)
-
-    // In progress ...
-    //async.apply(getGoogleInfo, options)
+    async.apply(getWhoisData, generalInfo, options),
+    async.apply(getSemrushData, generalInfo, options),
+    async.apply(getIndexedPages, options, true),
+    async.apply(getIndexedPages, options, false)
 
   ], function(error, results){
       if (error) {
@@ -165,6 +166,18 @@ function getOtherMetrics(generalInfo, options, callback) {
 
       }
 
+      if (results[1]) {
+        data.semrush = results[1];
+      }
+
+      if (results[2]) {
+        data.primaryIndex = results[2];
+      }
+
+      if (results[3]) {
+        data.googleIndex = results[3];
+        data.secondaryIndex = data.googleIndex - data.primaryIndex;
+      }
       callback(null, data);
   });
 
@@ -175,12 +188,12 @@ function getWhoisData(generalInfo, options, callback) {
 
 
   if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
-      var result = emptyWhoisData();
+      let result = emptyWhoisData();
       return callback(null, result);
   }
 
   if (options.minTrustFlow && generalInfo.majestic.TrustFlow < options.minTrustFlow) {
-      var result = emptyWhoisData();
+      let result = emptyWhoisData();
       return callback(null, result);
   }
 
@@ -288,7 +301,7 @@ function getMajesticData(generalInfo, options, callback) {
         };
 
         if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
-          generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "N0-CHECK-DNS-RESOLVED"}; //Dummy json if there is no majesticKey
+          generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "N0-CHECK-DNS-RESOLVED"};
           return callback(null, generalInfo);
         }
 
@@ -316,38 +329,65 @@ function getMajesticData(generalInfo, options, callback) {
     }
 }
 
-/*
-function getGoogleInfo(options, callback) {
+function getSemrushData(generalInfo, options, callback) {
 
-  if (options.googleDomain) {
-      log.debug({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "Get Google Info on : " + options.googleDomain});
 
-      var googleUrl = "https://www." + options.googleDomain + URL_GOOGLE_SITE + options.domain;
-      request(googleUrl, function (error, response, body) {
-          if (error) {
-            console.log(error);
-            log.error({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "google request error", "options" : error.message});
-            return callback(null, {});
-          }
+    if (options.semrushKey) {
 
-          if (response.statusCode == 200) {
-            log.debug({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "Google info retrieve with status : " + response.statusCode});
-            console.log(body);
-            callback(null, {});
-            //var info = JSON.parse(body);
-            //callback(null, info.DataTables.Results.Data[0]);
-          }
-          else {
-            log.error({"url" : options.domain, "step" : "check-domain.getGoogleInfo", "message" : "majestif request error", "options" : response.statusCode});
-            callback(null, {});
-          }
-      });
-  }
-  else {
-    callback();
-  }
+        var query = {
+           url : URL_SEMRUSH_GET_DATA,
+           qs : {
+             type : "domain_rank",
+             key : options.semrushKey,
+             export_columns : "Dn,Rk,Or,Ot,Oc,Ad,At,Ac",
+             "domain" : options.domain,
+             "database" : options.semrushDB || "us"
+           }
+        };
+
+        if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+          return callback(null, emptySemrush());
+        }
+
+        if (options.minTrustFlow && generalInfo.majestic.TrustFlow < options.minTrustFlow) {
+            return callback(null, emptySemrush());
+        }
+
+        request(query, function (error, response, body) {
+            if (error) {
+              logError("Semrush request error", options.domain, error);
+              return callback(error);
+            }
+
+            if (response.statusCode === 200) {
+              callback(null, convertSemrush(body));
+            }
+            else {
+              error = new Error("Impossible to get the semrush data, check your credential");
+              logError("Semrush http request error : " + response.statusCode, options.domain, error);
+              callback(error);
+            }
+        });
+    }
+    else {
+      callback(null, emptySemrush());
+    }
 }
-*/
+
+function getIndexedPages(options, fromPrimaryIndex, callback) {
+
+  var opts = {
+    host : options.host,
+    numberOfResults : true,
+    qs : {
+      q   : "site:" + options.domain + (fromPrimaryIndex ? " /&" : "")
+    },
+    proxyList : options.proxyList
+  };
+
+  serp.search(opts, callback);
+
+}
 
 function emptyWhoisData() {
   return {
@@ -360,6 +400,35 @@ function emptyWhoisData() {
       expiredWaitingTime : 'no-data',
       estimatedDomainAge : 'no-data'
   };
+}
+
+function convertSemrush(semrushResponse) {
+
+  var response =  semrushResponse.split("\r\n")[1].split(";");
+  return {
+    rank : response[1],
+    oganicKeywords : response[2],
+    organicTraffic : response[3],
+    organicCost: response[4],
+    adwordsKeywords: response[5],
+    adwordsTraffic : response[6],
+    adwordsCost : response[7]
+  };
+
+
+}
+
+function emptySemrush() {
+  return {
+    rank : -1,
+    oganicKeywords : 0,
+    organicTraffic : 0,
+    organicCost: 0,
+    adwordsKeywords: 0,
+    adwordsTraffic : 0,
+    adwordsCost : 0
+  };
+
 }
 
 function logInfo(message, domain, options) {
