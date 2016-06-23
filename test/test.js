@@ -4,11 +4,11 @@ var checkDomain = require("../index");
 
 describe('Domain Check', function() {
 
-        it('Check ip & dns for an existing domain', function(done) {
+        it.only('Check ip & dns for an existing domain', function(done) {
             this.timeout(20000);
 
             checkDomain({domain : "google.be"}, function(error, result) {
-                  //console.log(result);
+                  console.log(result);
                   assert(result.isAlive);
                   assert(result.isDNSFound);
                   assert(! result.isAvailable);

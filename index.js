@@ -404,7 +404,11 @@ function emptyWhoisData() {
 
 function convertSemrush(semrushResponse) {
 
-  var response =  semrushResponse.split("\r\n")[1].split(";");
+  var result = semrushResponse.split("\r\n");
+  if (result.length < 2) {
+    return emptySemrush();
+  }
+  var response =  result[1].split(";");
   return {
     rank : response[1],
     oganicKeywords : response[2],
@@ -414,8 +418,7 @@ function convertSemrush(semrushResponse) {
     adwordsTraffic : response[6],
     adwordsCost : response[7]
   };
-
-
+  
 }
 
 function emptySemrush() {
