@@ -387,12 +387,17 @@ function getIndexedPages(options, fromPrimaryIndex, callback) {
     proxyList : options.proxyList
   };
 
-  serp.search(opts, callback);
+  serp.search(opts, function(error, result) {
+      if (error) {
+          // Don't stop the check if something is wrong with Google
+          return callback(null, 0);
+      }
+      return callback(null, result);
+  });
 
 }
 
 function getTld(domain) {
-    console.log("getTld", domain);
     return new URI("http://" + domain).tld();
 }
 

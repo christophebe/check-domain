@@ -8,7 +8,7 @@ describe('Domain Check', function() {
             this.timeout(20000);
 
             checkDomain({domain : "google.be"}, function(error, result) {
-                  console.log(result);
+                  //console.log(result);
                   assert(result.isAlive);
                   assert(result.isDNSFound);
                   assert(! result.isAvailable);
@@ -63,13 +63,5 @@ describe('Domain Check', function() {
 
         });
 
-        it.skip("Check ip & dns & google info for an existing domain", function(done){
-            this.timeout(20000);
-            checkDomain({domain : "rtbf.be", googleDomain : "google.be"}, function(error, result) {
-                //console.log(result);
-                //assert(! result.isAlive);
-                //assert(result.pr == -1);
-                done();
-            });
-        });
+
 });
