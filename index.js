@@ -1,4 +1,3 @@
-var events      = require('events');
 var dns         = require('dns');
 var util        = require("util");
 var async       = require("async");
@@ -6,6 +5,7 @@ var request     = require('request');
 var ping        = require('ping');
 var moment      = require('moment');
 var _           = require('underscore');
+var URI         = require('urijs');
 var serp        = require('serp');
 var log         = require('crawler-ninja-logger').Logger;
 
@@ -178,6 +178,8 @@ function getOtherMetrics(generalInfo, options, callback) {
         data.googleIndex = results[3];
         data.secondaryIndex = data.googleIndex - data.primaryIndex;
       }
+
+      data.tld = getTld(options.domain);
       callback(null, data);
   });
 
@@ -389,6 +391,11 @@ function getIndexedPages(options, fromPrimaryIndex, callback) {
 
 }
 
+function getTld(domain) {
+    console.log("getTld", domain);
+    return new URI("http://" + domain).tld();
+}
+
 function emptyWhoisData() {
   return {
       missingData : "true",
@@ -418,7 +425,7 @@ function convertSemrush(semrushResponse) {
     adwordsTraffic : response[6],
     adwordsCost : response[7]
   };
-  
+
 }
 
 function emptySemrush() {

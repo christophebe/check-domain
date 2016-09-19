@@ -4,7 +4,7 @@ var checkDomain = require("../index");
 
 describe('Domain Check', function() {
 
-        it.only('Check ip & dns for an existing domain', function(done) {
+        it('Check ip & dns for an existing domain', function(done) {
             this.timeout(20000);
 
             checkDomain({domain : "google.be"}, function(error, result) {
@@ -63,8 +63,6 @@ describe('Domain Check', function() {
 
         });
 
-
-        // TODO : Add google infos
         it.skip("Check ip & dns & google info for an existing domain", function(done){
             this.timeout(20000);
             checkDomain({domain : "rtbf.be", googleDomain : "google.be"}, function(error, result) {
