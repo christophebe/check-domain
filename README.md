@@ -26,9 +26,12 @@ var checkDomain = require("check-domain");
 checkDomain(
   {
     domain : "domainToCheck.com",
-    host : "google.fr", // the google tld used to check the indexed pages
 
-    // Optional 
+    // optional : the google tld used to check the indexed pages
+    // if not define, the domain checker will try to set it based on the domain tld
+    googleHost : "google.fr",
+
+    // Optional
     majecticKey : "[add here your majestic key]",
     whois : {user : "[your whoisxmlapi name]", password : "[your whoisxmlapi password]"},
     semrushKey : "[add here your semrush key]",
