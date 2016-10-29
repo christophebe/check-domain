@@ -33,11 +33,7 @@ var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
  * - Whois provided by whoisxmlapi.com
  * - Check if indexed by Google (primary & secondary index)
  *
- * @param a json object {domain, majecticKey, whois : {user, password}, checkIfAlive, minTrustFlow},
-          The majesticKey is optional
-          The whois is also optional. It match to whoisxmlapi.com API credential
-          noCheckIfDNSResolve : if true, the majestic & the whois data are not retrieved if there is a correct DNS resolved
-          minTrustFlow : the min trustflow value required to retrieve availability and whois data
+ * @param a json object (options), see the description in the README file
  * @param callback(error, result). The result is a json object containing the following attributes :
  *  - domain,
  *  - isDNSFound,
@@ -55,6 +51,7 @@ var MISSING_WHOIS_DATA_MESSAGE = "MISSING_WHOIS_DATA";
  *     createdDate
  *     expiresDate
  *     expiredWaitingTime
+ *  - The Google info
  */
 module.exports = function (options, endCallback) {
 
@@ -295,13 +292,13 @@ function getWhoisData(generalInfo, options, callback) {
 }
 
 function getMajesticData(generalInfo, options, callback) {
-    if (options.majecticKey) {
+    if (options.majesticKey) {
         var query = {
            url : URL_MAJESTIC_GET_INFO,
            qs : {
              cmd : "GetIndexItemInfo",
              datasource : "fresh",
-             app_api_key : options.majecticKey,
+             app_api_key : options.majesticKey,
              items : 1,
              item0 : options.domain
            }
@@ -387,6 +384,10 @@ function getSemrushData(generalInfo, options, callback) {
 
 function getIndexedPages(options, fromPrimaryIndex, callback) {
 
+  if (options.noCheckGoogleIndex) {
+      return callback(null, {nrbPages:0, googleHost:"no-check"});
+  }
+
   var googleHost = getGoogleHost(options);
   var opts = {
     host : googleHost.domain,
@@ -400,8 +401,7 @@ function getIndexedPages(options, fromPrimaryIndex, callback) {
   serp.search(opts, function(error, result) {
       if (error) {
           // Don't stop the check if something is wrong with Google
-
-          return callback(null, 0);
+          return callback(null, {nrbPages:0, googleHost:"error"});
       }
 
       return callback(null, {nrbPages:result, googleHost:googleHost.domain});
@@ -411,7 +411,7 @@ function getIndexedPages(options, fromPrimaryIndex, callback) {
 
 function getGoogleHost(options) {
     if (options.googleHost) {
-      return options.googleHost;
+      return {"tld" : "options", domain : options.googleHost};
     }
 
     var found =  _.find(GOOGLE_HOSTS, function(tldInfo){ return tldInfo.tld===options.tld ;});
@@ -421,9 +421,6 @@ function getGoogleHost(options) {
     else {
       return {tld : "default", domain : "google.com"};
     }
-
-
-
 }
 
 function getTld(domain) {
