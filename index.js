@@ -292,6 +292,11 @@ function getWhoisData(generalInfo, options, callback) {
 }
 
 function getMajesticData(generalInfo, options, callback) {
+
+    if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+      generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "DNS-FOUND"}; //Dummy json if there is no majesticKey
+      return callback(null, generalInfo);
+    }
     if (options.majesticKey) {
         var query = {
            url : URL_MAJESTIC_GET_INFO,
@@ -312,8 +317,22 @@ function getMajesticData(generalInfo, options, callback) {
 
             if (response.statusCode === 200) {
               var info = JSON.parse(body);
-              generalInfo.majestic = info.DataTables.Results.Data[0];
-              callback(null, generalInfo);
+              if (info.DataTables && info.DataTables.Results && info.DataTables.Results.Data) {
+                generalInfo.majestic = info.DataTables.Results.Data[0];
+                return callback(null, generalInfo);
+              }
+              else {
+                if (info.Code && info.Code === "InsufficientIndexItemInfoUnits") {
+                  generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "INSUFFICIENT-CREDIT"};
+                }
+                else {
+                  logError("Majestic error : " + info.Code + " : " + info.ErrorMessage);
+                  generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "MAJESTIC-ERROR"};
+                }
+                return callback(null, generalInfo);
+
+              }
+
             }
             else {
               error = new Error("Impossible to get the Majestic data, check your credential");
