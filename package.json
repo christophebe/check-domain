@@ -1,6 +1,6 @@
 {
   "name": "check-domain",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "A simple component to check the status of a domain (whois, availability, expired, TrustFlow, number of indexed pages, ...)",
   "repository": {
     "type": "git",
@@ -22,7 +22,7 @@
   "dependencies": {
     "async": "^2.1.2",
     "crawler-ninja-logger": "*",
-    "mocha": "^3.1.2",
+    "majestic-api": "^1.0.0",
     "moment": "^2.15.2",
     "ping": "^0.2.1",
     "request": "^2.76.0",

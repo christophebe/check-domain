@@ -7,6 +7,7 @@ var moment      = require('moment');
 var _           = require('underscore');
 var URI         = require('urijs');
 var serp        = require('serp');
+var majestic    = require('majestic-api');
 var log         = require('crawler-ninja-logger').Logger;
 
 var GOOGLE_HOSTS = require('./googlehosts.js').list;
@@ -137,8 +138,8 @@ function getOtherMetrics(generalInfo, options, callback) {
   async.parallel([
     async.apply(getWhoisData, generalInfo, options),
     async.apply(getSemrushData, generalInfo, options),
-    async.apply(getIndexedPages, options, true),
-    async.apply(getIndexedPages, options, false)
+    async.apply(getIndexedPages, options, generalInfo, true),
+    async.apply(getIndexedPages, options, generalInfo, false)
 
   ], function(error, results){
       if (error) {
@@ -294,52 +295,29 @@ function getWhoisData(generalInfo, options, callback) {
 function getMajesticData(generalInfo, options, callback) {
 
     if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
-      generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "DNS-FOUND"}; //Dummy json if there is no majesticKey
+      generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "DNS-FOUND"};
       return callback(null, generalInfo);
     }
     if (options.majesticKey) {
-        var query = {
-           url : URL_MAJESTIC_GET_INFO,
-           qs : {
-             cmd : "GetIndexItemInfo",
-             datasource : "fresh",
-             app_api_key : options.majesticKey,
-             items : 1,
-             item0 : options.domain
-           }
-        };
 
-        request(query, function (error, response, body) {
-            if (error) {
+      majestic.getDomainInfo({apiKey: options.majesticKey,datasource: "fresh",domains: [options.domain]}, function(error, info) {
+          if (error) {
               logError("Majestic request error", options.domain, error);
               return callback(error);
-            }
+          }
 
-            if (response.statusCode === 200) {
-              var info = JSON.parse(body);
-              if (info.DataTables && info.DataTables.Results && info.DataTables.Results.Data) {
-                generalInfo.majestic = info.DataTables.Results.Data[0];
-                return callback(null, generalInfo);
-              }
-              else {
-                if (info.Code && info.Code === "InsufficientIndexItemInfoUnits") {
-                  generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "INSUFFICIENT-CREDIT"};
-                }
-                else {
-                  logError("Majestic error : " + info.Code + " : " + info.ErrorMessage);
-                  generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "MAJESTIC-ERROR"};
-                }
-                return callback(null, generalInfo);
+          if (info.DataTables && info.DataTables.Results && info.DataTables.Results.Data) {
+              generalInfo.majestic = info.DataTables.Results.Data[0];
+              return callback(null, generalInfo);
+          }
+          else {
+            generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "NO-MAJESTIC-DATA"}; //Dummy json if there is no majesticKey
+            return callback(null, generalInfo);
+          }
 
-              }
 
-            }
-            else {
-              error = new Error("Impossible to get the Majestic data, check your credential");
-              logError("Majestic http request error : " + response.statusCode, options.domain, error);
-              callback(error);
-            }
-        });
+      });
+
     }
     else {
       generalInfo.majestic = {"TrustFlow" : 0, "ResultCode" : "NO-MAJESTIC-KEY"}; //Dummy json if there is no majesticKey
@@ -401,9 +379,17 @@ function getSemrushData(generalInfo, options, callback) {
     }
 }
 
-function getIndexedPages(options, fromPrimaryIndex, callback) {
+function getIndexedPages(options, generalInfo, fromPrimaryIndex, callback) {
 
   if (options.noCheckGoogleIndex) {
+      return callback(null, {nrbPages:0, googleHost:"no-check"});
+  }
+
+  if (options.noCheckIfDNSResolve && generalInfo.isDNSFound) {
+    return callback(null, {nrbPages:0, googleHost:"no-check"});
+  }
+
+  if (options.minTrustFlow && generalInfo.majestic.TrustFlow < options.minTrustFlow) {
       return callback(null, {nrbPages:0, googleHost:"no-check"});
   }
 
