@@ -468,7 +468,7 @@ function convertSemrush(semrushResponse, semrushDB) {
 
 function emptySemrush(semrushDB) {
   return {
-    rank : 'no-data',
+    rank : -1,
     oganicKeywords : 0,
     organicTraffic : 0,
     organicCost: 0,
